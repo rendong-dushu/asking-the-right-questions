@@ -837,11 +837,7 @@ body[data-theme="dark"] .eyebrow,body[data-theme="brand-dark"] .eyebrow{color:va
     </div>
 
         <div class="napkin-sketch">
-      <script type="application/json" id="bd-sketch-data">{"caption": "批判性思维四步", "nodes": [{"id": "n1", "label": "① 拆论证
-论题→结论→理由"}, {"id": "n2", "label": "② 查逻辑
-模糊词→隐藏假设→谬误"}, {"id": "n3", "label": "③ 评证据
-个人经历/研究/数据/专家"}, {"id": "n4", "label": "④ 深追问
-替代原因→省略信息→合理结论"}], "edges": [{"from": "n1", "to": "n2"}, {"from": "n2", "to": "n3"}, {"from": "n3", "to": "n4"}]}</script>
+      <script type="application/json" id="bd-sketch-data">{"caption": "批判性思维四步", "nodes": [{"id": "n1", "label": "① 拆论证\n论题→结论→理由"}, {"id": "n2", "label": "② 查逻辑\n模糊词→隐藏假设→谬误"}, {"id": "n3", "label": "③ 评证据\n个人经历/研究/数据/专家"}, {"id": "n4", "label": "④ 深追问\n替代原因→省略信息→合理结论"}], "edges": [{"from": "n1", "to": "n2"}, {"from": "n2", "to": "n3"}, {"from": "n3", "to": "n4"}]}</script>
       <div id="bd-sketch"></div>
     </div>
 
@@ -2198,29 +2194,27 @@ body[data-theme="dark"] .eyebrow,body[data-theme="brand-dark"] .eyebrow{color:va
     for (let d = 0; d <= maxDepth; d++) colW[d] = Math.max(...byDepth[d].map(n => n.w));
     colX[0] = 0; for (let d = 1; d <= maxDepth; d++) colX[d] = colX[d - 1] + colW[d - 1] + HGAP;
     // 竖向 tidy 布局:后序 y 游标(变高不重叠),父居子中点
-    const VGAP = 30; let cursor = 0;
-    (function place(n){ n.x = colX[n.depth]; if (n.children.length === 0) { n.top = cursor; n.cy = cursor + n.h / 2; cursor += n.h + VGAP; } else { n.children.forEach(place); const f = n.children[0], l = n.children[n.children.length - 1]; n.cy = (f.cy + l.cy) / 2; n.top = n.cy - n.h / 2; } })(rootNode);
-    // 冲突后修正:自底向上检测每层兄弟节点是否重叠,重叠则推开
-    for (let d = maxDepth; d >= 0; d--) {
-      const row = byDepth[d] || [];
-      for (let i = 1; i < row.length; i++) {
-        const prev = row[i-1], cur = row[i];
-        const gap = cur.top - (prev.top + prev.h);
-        if (gap < VGAP) {
-          const push = VGAP - gap;
-          for (let j = i; j < row.length; j++) { row[j].top += push; row[j].cy += push; }
-          cursor = Math.max(cursor, row[row.length-1].top + row[row.length-1].h + VGAP);
-          // 重新居中所有内节点(children非空)
-          Object.values(byDepth).flat().forEach(n => {
-            if (n.children && n.children.length) {
-              const fc = n.children[0], lc = n.children[n.children.length-1];
-              n.cy = (fc.cy + lc.cy) / 2; n.top = n.cy - n.h / 2;
-            }
-          });
-        }
+        const VGAP = 30;
+    // 竖向布局:slot 高 = max(自身块高, 子树高) -> 兄弟永不重叠;父节点在 slot 内居中,子树整体居中
+    (function measureSub(n){
+      if (!n.children.length) { n.subH = n.h; return n.subH; }
+      let total = 0;
+      n.children.forEach(c => { total += measureSub(c); });
+      total += VGAP * (n.children.length - 1);
+      n.subH = Math.max(n.h, total);
+      return n.subH;
+    })(rootNode);
+    (function assign(n, top){
+      n.x = colX[n.depth];
+      n.top = top + (n.subH - n.h) / 2;
+      n.cy = n.top + n.h / 2;
+      if (n.children.length) {
+        const total = n.children.reduce((a, c) => a + c.subH, 0) + VGAP * (n.children.length - 1);
+        let y = top + (n.subH - total) / 2;
+        n.children.forEach(c => { assign(c, y); y += c.subH + VGAP; });
       }
-    }
-    // 画布边界
+    })(rootNode, 0);
+// 画布边界
     const MARGIN = 48; let minY = Infinity, maxY = -Infinity, maxX = -Infinity;
     Object.values(byDepth).flat().forEach(n => { minY = Math.min(minY, n.top); maxY = Math.max(maxY, n.top + n.h); maxX = Math.max(maxX, n.x + n.w); });
     const W = maxX + MARGIN * 2, H = (maxY - minY) + MARGIN * 2, offY = MARGIN - minY, offX = MARGIN;
